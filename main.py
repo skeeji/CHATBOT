@@ -21,11 +21,13 @@ text_features_array = None
 text_metadata_list = None
 TEXT_EMBEDDING_MODEL = None
 MODEL_NAME_FREE = "all-MiniLM-L6-v2"
+LOCAL_MODEL_PATH = f'models/{MODEL_NAME_FREE}' # --- MODIFIÉ --- Chemin vers le modèle local
 TEXT_EMBEDDINGS_PATH = 'data/text_embeddings_free.pkl'
 
 # --- FONCTION DE CHARGEMENT DE BASE DE DONNÉES ---
 def load_database():
-    global features_array, image_ids, metadata_list, text_features_array, text_metadata_list, TEXT_EMBEDDING_MODEL
+    # --- MODIFIÉ --- Ajout de LOCAL_MODEL_PATH
+    global features_array, image_ids, metadata_list, text_features_array, text_metadata_list, TEXT_EMBEDDING_MODEL, LOCAL_MODEL_PATH
     logger.info("🚀 DÉBUT CHARGEMENT BASE DE DONNÉES DEPUIS FICHIERS LOCAUX")
 
     if os.path.exists(TEXT_EMBEDDINGS_PATH):
@@ -37,9 +39,24 @@ def load_database():
                 text_metadata_list = data['metadata']
             logger.info(f"✅ Embeddings Texte Gratuits chargés: {text_features_array.shape}")
 
-            logger.info(f"🧠 Chargement du modèle {MODEL_NAME_FREE}...")
+            # --- MODIFIÉ ---
+            # On charge le modèle depuis le dossier local
+            logger.info(f"🧠 Chargement du modèle depuis le chemin local: {LOCAL_MODEL_PATH}...")
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            TEXT_EMBEDDING_MODEL = SentenceTransformer(MODEL_NAME_FREE, device=device)
+            
+            if not os.path.exists(LOCAL_MODEL_PATH):
+                 logger.error(f"❌ ERREUR FATALE: Dossier modèle local non trouvé: {LOCAL_MODEL_PATH}")
+                 logger.error("Assurez-vous d'avoir exécuté 'python download_model.py' (Étape 1) avant de continuer.")
+                 # Lève une exception pour arrêter le processus proprement
+                 raise FileNotFoundError(f"Dossier modèle manquant: {LOCAL_MODEL_PATH}")
+
+            # Ancien code:
+            # TEXT_EMBEDDING_MODEL = SentenceTransformer(MODEL_NAME_FREE, device=device)
+            
+            # Nouveau code:
+            TEXT_EMBEDDING_MODEL = SentenceTransformer(LOCAL_MODEL_PATH, device=device)
+            # --- FIN MODIFICATION ---
+            
             logger.info(f"✅ Modèle de requête Texte chargé sur {device}.")
 
         except Exception as e:

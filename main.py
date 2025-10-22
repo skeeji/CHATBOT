@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-﻿# VERSION FINALE ET NETTOYEE
-=======
 # VERSION FINALE ET NETTOYEE
->>>>>>> 59d5a98d61f10a7e816bd2eec269bd8c84a89352
 import os
 import logging
 import pickle
@@ -17,27 +13,18 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- VARIABLES GLOBALES ---
-# Variables pour la recherche par image (Vecteurs pour la recherche visuelle)
 features_array = None
 image_ids = None
 metadata_list = None
 IMAGE_EMBEDDINGS_PATH = 'data/embeddings.pkl'
-
-# Variables pour la recherche textuelle GRATUITE (Vecteurs pour la recherche sémantique)
 text_features_array = None
 text_metadata_list = None
 TEXT_EMBEDDING_MODEL = None
 MODEL_NAME_FREE = "all-MiniLM-L6-v2"
-# Le chemin vers le PKL maintenant sur GitHub
 TEXT_EMBEDDINGS_PATH = 'data/text_embeddings_free.pkl'
 
 # --- FONCTION DE CHARGEMENT DE BASE DE DONNÉES ---
 def load_database():
-    """
-    Charge les bases de données (images et texte) depuis les fichiers locaux.
-    Ceci est appelé une fois au démarrage par Gunicorn.
-    """
-    # Déclarez toutes les variables globales que vous modifiez
     global features_array, image_ids, metadata_list, text_features_array, text_metadata_list, TEXT_EMBEDDING_MODEL
     logger.info("🚀 DÉBUT CHARGEMENT BASE DE DONNÉES DEPUIS FICHIERS LOCAUX")
 
@@ -57,7 +44,6 @@ def load_database():
 
         except Exception as e:
             logger.error(f"❌ Erreur FATALE lors du chargement: {str(e)}", exc_info=True)
-            # Met les variables à None pour que le health check échoue
             text_features_array = None
             text_metadata_list = None
             TEXT_EMBEDDING_MODEL = None
@@ -75,7 +61,8 @@ def load_database():
 # --- FONCTIONS DE RECHERCHE ---
 def extract_text_features(text_query):
     global TEXT_EMBEDDING_MODEL
-    if TEXT_EMBEDDING_MODEL is None: return None
+    if TEXT_EMBEDDING_MODEL is None:
+        return None
     try:
         features = TEXT_EMBEDDING_MODEL.encode(text_query, normalize_embeddings=True, convert_to_numpy=True)
         return features.flatten()
@@ -103,12 +90,16 @@ def search_logic_text(query, top_k=10):
     for rank in range(min(top_k, len(sorted_indices))):
         i = sorted_indices[rank]
         score = similarity_scores[i]
-        if i >= len(text_metadata_list): continue
+        if i >= len(text_metadata_list):
+            continue
         metadata = text_metadata_list[i]
         top_results.append({
-            'index': int(i), 'similarity': float(score),
-            'nom': metadata.get('nom', 'N/A'), 'artiste': metadata.get('artiste', 'N/A'),
-            'annee': metadata.get('annee', 'N/A'), 'image_url': f"/images/{metadata.get('image_id', '')}",
+            'index': int(i),
+            'similarity': float(score),
+            'nom': metadata.get('nom', 'N/A'),
+            'artiste': metadata.get('artiste', 'N/A'),
+            'annee': metadata.get('annee', 'N/A'),
+            'image_url': f"/images/{metadata.get('image_id', '')}",
             'lien_site': metadata.get('lien_site', 'N/A')
         })
     return {'success': True, 'results': top_results}, 200
@@ -148,4 +139,3 @@ def serve_image(filename):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=True, host='0.0.0.0', port=port)
-

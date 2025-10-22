@@ -1,0 +1,43 @@
+﻿steps: 
+  # Étape 1: Construire l'image Docker
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'build'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app:\'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app:latest'
+      - '.'
+  
+  # Étape 2: Pousser l'image vers Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'push'
+      - '--all-tags'
+      - 'europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app'
+  
+  # Étape 3: Déployer sur Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'chatbot-app'
+      - '--image=europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app:\'
+      - '--region=europe-west1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--timeout=300'
+      - '--port=8080'
+
+images:
+  - 'europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app:\'
+  - 'europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: 1800s

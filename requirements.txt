@@ -9,3 +9,4 @@ werkzeug
 # Dépendances pour la recherche sémantique gratuite
 torch
 sentence-transformers
+gunicorn

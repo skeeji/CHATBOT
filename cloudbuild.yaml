@@ -1,12 +1,12 @@
-﻿steps: 
+steps:
   # Étape 1: Construire l'image Docker
   - name: 'gcr.io/cloud-builders/docker'
     args: 
       - 'build'
       - '-t'
-      - 'europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app:\'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/chatbot-repo/chatbot-app:$COMMIT_SHA'
       - '-t'
-      - 'europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app:latest'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/chatbot-repo/chatbot-app:latest'
       - '.'
   
   # Étape 2: Pousser l'image vers Artifact Registry
@@ -14,7 +14,7 @@
     args: 
       - 'push'
       - '--all-tags'
-      - 'europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/chatbot-repo/chatbot-app'
   
   # Étape 3: Déployer sur Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -23,7 +23,7 @@
       - 'run'
       - 'deploy'
       - 'chatbot-app'
-      - '--image=europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app:\'
+      - '--image=europe-west1-docker.pkg.dev/$PROJECT_ID/chatbot-repo/chatbot-app:$COMMIT_SHA'
       - '--region=europe-west1'
       - '--platform=managed'
       - '--allow-unauthenticated'
@@ -33,8 +33,8 @@
       - '--port=8080'
 
 images:
-  - 'europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app:\'
-  - 'europe-west1-docker.pkg.dev/\/chatbot-repo/chatbot-app:latest'
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/chatbot-repo/chatbot-app:$COMMIT_SHA'
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/chatbot-repo/chatbot-app:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY

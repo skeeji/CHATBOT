@@ -1,0 +1,8 @@
+# Environnement virtuel Python
+venv/
+# Fichiers compilés
+__pycache__/
+# Fichier .pkl de plus de 100 Mo qui ne devrait pas être sur Git
+data/text_embeddings_free.pkl
+# Ignorer le Dockerfile si vous utilisez Vercel, mais le garder si Cloud Run est le plan
+# Dockerfile

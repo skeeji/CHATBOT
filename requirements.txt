@@ -1,11 +1,6 @@
-﻿Flask
-flask-cors
+Flask
+Flask-Cors
 numpy
-scipy
-pandas
-Pillow
-requests
-werkzeug
-# Dépendances pour la recherche sémantique gratuite
 torch
 sentence-transformers
+gunicorn

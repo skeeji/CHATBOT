@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿# VERSION FINALE ET NETTOYEE
+=======
+# VERSION FINALE ET NETTOYEE
+>>>>>>> 59d5a98d61f10a7e816bd2eec269bd8c84a89352
 import os
 import logging
 import pickle

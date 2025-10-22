@@ -16,6 +16,5 @@ COPY . .
 ENV PORT 8080
 
 # Exécuter l'application avec Gunicorn, en utilisant le port 8080
-# Note: Nous utilisons le format shell (sans []) pour garantir que Gunicorn se lie au port 8080.
 # (main:app) lance l'application 'app' dans le fichier 'main.py'
 CMD gunicorn --bind 0.0.0.0:8080 --workers 1 main:app

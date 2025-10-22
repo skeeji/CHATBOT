@@ -2,12 +2,11 @@ import os
 import logging
 import pickle
 import numpy as np
-import requests
 import torch
 from sentence_transformers import SentenceTransformer
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-# Note: Les imports pour la recherche par image (ex: PIL, scipy) sont laissés en commentaire.
+# ATTENTION : Si vous utilisez Flask-CORS, assurez-vous qu'il est bien dans requirements.txt
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,33 +24,22 @@ text_features_array = None 
 text_metadata_list = None   
 TEXT_EMBEDDING_MODEL = None 
 MODEL_NAME_FREE = "all-MiniLM-L6-v2"
-TEXT_EMBEDDINGS_PATH = 'data/text_embeddings_free.pkl'
+# Le chemin vers le PKL maintenant sur GitHub
+TEXT_EMBEDDINGS_PATH = 'data/text_embeddings_free.pkl' 
 
 # --- FONCTION DE CHARGEMENT DE BASE DE DONNÉES ---
 
 def load_database():
-    """Chargement de toutes les bases de données (Image et Texte) au démarrage de l'API."""
+    """
+    Charge les bases de données (images et texte) depuis les fichiers locaux.
+    Ceci est appelé une fois au démarrage par Gunicorn.
+    """
     # Déclarez toutes les variables globales que vous modifiez
     global features_array, image_ids, metadata_list, text_features_array, text_metadata_list, TEXT_EMBEDDING_MODEL
     
-    logger.info("🚀 DÉBUT CHARGEMENT BASE DE DONNÉES")
+    logger.info("🚀 DÉBUT CHARGEMENT BASE DE DONNÉES DEPUIS FICHIERS LOCAUX")
     
-    # 1. CHARGEMENT BASE D'IMAGES (Si vous avez vos fichiers)
-    if os.path.exists(IMAGE_EMBEDDINGS_PATH):
-        try:
-            logger.info(f"📦 Chargement {IMAGE_EMBEDDINGS_PATH}...")
-            # --- Votre logique de chargement d'embeddings d'images ici ---
-            # Exemple:
-            # with open(IMAGE_EMBEDDINGS_PATH, 'rb') as f:
-            #     data = pickle.load(f)
-            #     features_array = np.array(data['features'])
-            #     image_ids = data['image_ids']
-            #     metadata_list = data['metadata']
-            logger.info("✅ Embeddings Images chargés. (Vérifiez les logs pour la forme si implémenté)")
-        except Exception as e:
-            logger.error(f"❌ Erreur chargement embeddings images: {str(e)}")
-
-    # 2. CHARGEMENT BASE TEXTUELLE GRATUITE (NÉCESSAIRE pour /api/search_text)
+    # 1. CHARGEMENT BASE TEXTUELLE CRITIQUE
     if os.path.exists(TEXT_EMBEDDINGS_PATH):
         try:
             logger.info(f"📦 Chargement {TEXT_EMBEDDINGS_PATH}...")
@@ -61,100 +49,108 @@ def load_database():
                 text_metadata_list = data['metadata']
             logger.info(f"✅ Embeddings Texte Gratuits chargés: {text_features_array.shape}")
             
-            # Charger le modèle pour les requêtes utilisateur
+            # Charger le modèle pour les requêtes utilisateur (étape gourmande en ressources)
             logger.info(f"🧠 Chargement du modèle {MODEL_NAME_FREE} pour les requêtes utilisateur...")
             device = 'cuda' if torch.cuda.is_available() else 'cpu' 
             TEXT_EMBEDDING_MODEL = SentenceTransformer(MODEL_NAME_FREE, device=device)
             logger.info(f"✅ Modèle de requête Texte chargé sur {device}.")
             
         except Exception as e:
-            logger.error(f"❌ Erreur chargement embeddings texte ou modèle: {str(e)}")
+            logger.error(f"❌ Erreur FATALE lors du chargement ou de l'initialisation du modèle: {str(e)}")
             text_features_array = None
             text_metadata_list = None
             TEXT_EMBEDDING_MODEL = None
     else:
-        logger.warning(f"⚠️ FICHIER TEXTUEL GRATUIT MANQUANT: {TEXT_EMBEDDINGS_PATH}. Recherche texte désactivée.")
+        logger.error(f"⚠️ FICHIER TEXTUEL CRITIQUE MANQUANT: {TEXT_EMBEDDINGS_PATH}. L'API de recherche texte est DÉSACTIVÉE.")
         
+    # 2. CHARGEMENT BASE D'IMAGES (Si vous l'utilisez, sinon les variables resteront None)
+    if os.path.exists(IMAGE_EMBEDDINGS_PATH):
+        logger.info(f"📦 Chargement {IMAGE_EMBEDDINGS_PATH}...")
+        # (Logique de chargement d'images ici si nécessaire)
+    else:
+        logger.warning(f"⚠️ FICHIER IMAGE MANQUANT: {IMAGE_EMBEDDINGS_PATH}")
+        
+    logger.info("🏁 Fin du chargement de la base de données.")
     return True
 
-# --- FONCTIONS DE RECHERCHE TEXTUELLE ---
+# --- FONCTIONS DE RECHERCHE TEXTUELLE (INCHANGÉES) ---
 
 def extract_text_features(text_query):
-    # ... (Le corps de cette fonction reste inchangé par rapport à votre version)
-    global TEXT_EMBEDDING_MODEL
-    
-    if TEXT_EMBEDDING_MODEL is None:
-        logger.error("❌ Modèle Sentence Transformer non chargé. Impossible de vectoriser la requête.")
-        return None
-         
-    try:
-        logger.info(f"🧠 Extraction features texte local pour: '{text_query[:30]}...'")
-        
-        features = TEXT_EMBEDDING_MODEL.encode(
-            text_query, 
-            normalize_embeddings=True, 
-            convert_to_numpy=True
-        )
-        
-        return features.flatten()
-            
-    except Exception as e:
-        logger.error(f"💥 Extraction Texte Error: {str(e)}")
-        return None
+    # ... (Le corps de cette fonction reste inchangé)
+    global TEXT_EMBEDDING_MODEL
+    
+    if TEXT_EMBEDDING_MODEL is None:
+        logger.error("❌ Modèle Sentence Transformer non chargé. Impossible de vectoriser la requête.")
+        return None
+        
+    try:
+        logger.info(f"🧠 Extraction features texte local pour: '{text_query[:30]}...'")
+        
+        features = TEXT_EMBEDDING_MODEL.encode(
+            text_query, 
+            normalize_embeddings=True, 
+            convert_to_numpy=True
+        )
+        
+        return features.flatten()
+            
+    except Exception as e:
+        logger.error(f"💥 Extraction Texte Error: {str(e)}")
+        return None
 
 def search_logic_text(query, top_k=10):
-    # ... (Le corps de cette fonction reste inchangé par rapport à votre version)
-    global text_features_array, text_metadata_list
-    
-    if text_features_array is None or TEXT_EMBEDDING_MODEL is None:
-        return {'success': False, 'error': 'Service de recherche texte non prêt (base de données ou modèle non chargé)'}, 503
-        
-    # 1. Extraire le vecteur de la requête utilisateur
-    query_features = extract_text_features(query)
-    if query_features is None:
-        return {'success': False, 'error': 'Impossible de vectoriser la requête'}, 500
-    
-    # 2. Calculer similarités
-    logger.info("🧮 Calcul des similarités textuelles...")
-        
-    if text_features_array.shape[1] != query_features.shape[0]:
-        logger.error(f"Incompatibilité de dimension : DB {text_features_array.shape[1]} vs Query {query_features.shape[0]}")
-        return {'success': False, 'error': 'Incompatibilité de dimension de vecteur'}, 500
-        
-    similarity_scores = np.dot(text_features_array, query_features)
-    
-    # 3. Trier les résultats
-    sorted_indices = np.argsort(similarity_scores)[::-1]
-    
-    top_results = []
-    for rank in range(min(top_k, len(sorted_indices))):
-        i = sorted_indices[rank]
-        score = similarity_scores[i]
-        
-        if i >= len(text_metadata_list):
-            continue
-            
-        metadata = text_metadata_list[i]
-        
-        top_results.append({
-            'index': int(i),
-            'similarity': float(score),
-            'nom': metadata.get('nom', 'N/A'),
-            'artiste': metadata.get('artiste', 'N/A'),
-            'annee': metadata.get('annee', 'N/A'),
-            'image_url': f"/images/{metadata.get('image_id', '')}", 
-            'lien_site': metadata.get('lien_site', 'N/A')
-        })
+    # ... (Le corps de cette fonction reste inchangé)
+    global text_features_array, text_metadata_list
+    
+    if text_features_array is None or TEXT_EMBEDDING_MODEL is None:
+        return {'success': False, 'error': 'Service de recherche texte non prêt (base de données ou modèle non chargé)'}, 503
+        
+    # 1. Extraire le vecteur de la requête utilisateur
+    query_features = extract_text_features(query)
+    if query_features is None:
+        return {'success': False, 'error': 'Impossible de vectoriser la requête'}, 500
+    
+    # 2. Calculer similarités
+    logger.info("🧮 Calcul des similarités textuelles...")
+        
+    if text_features_array.shape[1] != query_features.shape[0]:
+        logger.error(f"Incompatibilité de dimension : DB {text_features_array.shape[1]} vs Query {query_features.shape[0]}")
+        return {'success': False, 'error': 'Incompatibilité de dimension de vecteur'}, 500
+        
+    similarity_scores = np.dot(text_features_array, query_features)
+    
+    # 3. Trier les résultats
+    sorted_indices = np.argsort(similarity_scores)[::-1]
+    
+    top_results = []
+    for rank in range(min(top_k, len(sorted_indices))):
+        i = sorted_indices[rank]
+        score = similarity_scores[i]
+        
+        if i >= len(text_metadata_list):
+            continue
+            
+        metadata = text_metadata_list[i]
+        
+        top_results.append({
+            'index': int(i),
+            'similarity': float(score),
+            'nom': metadata.get('nom', 'N/A'),
+            'artiste': metadata.get('artiste', 'N/A'),
+            'annee': metadata.get('annee', 'N/A'),
+            'image_url': f"/images/{metadata.get('image_id', '')}", 
+            'lien_site': metadata.get('lien_site', 'N/A')
+        })
 
-    top_scores = [f'{s["similarity"]:.3f}' for s in top_results[:3]]
-    logger.info("✅ Top 3 similarités texte: {}".format(top_scores))
-    
-    return {
-        'success': True,
-        'query_processed': True,
-        'total_database_size': len(text_features_array) if text_features_array is not None else 0,
-        'results': top_results
-    }, 200
+    top_scores = [f'{s["similarity"]:.3f}' for s in top_results[:3]]
+    logger.info("✅ Top 3 similarités texte: {}".format(top_scores))
+    
+    return {
+        'success': True,
+        'query_processed': True,
+        'total_database_size': len(text_features_array) if text_features_array is not None else 0,
+        'results': top_results
+    }, 200
 
 
 # --- INITIALISATION DE L'APPLICATION FLASK ---
@@ -168,7 +164,17 @@ load_database()
 
 # --- ROUTES D'API ---
 
-# Route de Santé (Health Check) - Pour vérifier que l'API est vivante
+# Route de Base (DEBUG)
+@app.route('/', methods=['GET'])
+def home():
+    """Route de base simple pour tester si Flask répond."""
+    return jsonify({
+        'status': 'Bienvenue',
+        'message': 'API en ligne. Testez /health ou /api/search_text',
+        'db_ready': text_features_array is not None
+    })
+
+# Route de Santé (Health Check)
 @app.route('/health', methods=['GET'])
 def health_check():
     """Vérifie si le service est prêt (modèles chargés)."""
@@ -220,14 +226,8 @@ def api_search_text():
 @app.route('/images/<path:filename>')
 def serve_image(filename):
     """Sert les images stockées dans static/images/"""
-    # Attention: 'static/images' doit être le dossier où se trouvent vos images
+    # ATTENTION: 'static/images' doit être le dossier où se trouvent vos images
     return send_from_directory('static/images', filename)
-
-# TODO: INSEREZ ICI VOTRE ROUTE DE RECHERCHE PAR IMAGE EXISTANTE (/api/search)
-# @app.route('/api/search', methods=['POST', 'OPTIONS'])
-# def api_search_image():
-#     # ... Votre code existant pour la recherche par image ...
-#     pass
 
 
 # --- LANCEMENT DE L'APPLICATION (Pour le test local uniquement) ---

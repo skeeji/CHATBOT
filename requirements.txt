@@ -1,0 +1,11 @@
+﻿Flask
+flask-cors
+numpy
+scipy
+pandas
+Pillow
+requests
+werkzeug
+# Dépendances pour la recherche sémantique gratuite
+torch
+sentence-transformers

@@ -232,3 +232,4 @@ if __name__ == '__main__':
     # Ne devrait pas être utilisé par Cloud Run, mais pour le test local
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=True, host='0.0.0.0', port=port)
+

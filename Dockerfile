@@ -12,8 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Cloud Run écoute sur le port 8080 par défaut
+# La variable PORT est automatiquement fournie par Cloud Run
 ENV PORT 8080
 
-# Exécuter l'application avec Gunicorn, en utilisant la variable PORT
+# Exécuter l'application avec Gunicorn, en utilisant le port 8080
+# Note: Nous utilisons le format shell (sans []) pour garantir que Gunicorn se lie au port 8080.
 # (main:app) lance l'application 'app' dans le fichier 'main.py'
-CMD ["gunicorn", "--bind", "0.0.0.0:$(PORT)", "main:app"]
+CMD gunicorn --bind 0.0.0.0:8080 --workers 1 main:app

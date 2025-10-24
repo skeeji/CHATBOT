@@ -1,0 +1,31 @@
+# Ignorer tous les fichiers déjà ignorés par Git
+.git
+.gitignore
+.github
+
+# Ignorer les environnements virtuels Python
+venv/
+.venv
+env/
+
+# Ignorer les fichiers compilés et caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+
+# Ignorer les fichiers de configuration IDE
+.vscode/
+.idea/
+
+# Ignorer les fichiers de script de déploiement (ils ne vont pas dans le conteneur)
+cloudbuild.yaml
+deploy.sh
+README.md
+LISEZ-MOI.md
+*.csv
+
+# Ignorer le .dockerignore lui-même
+.dockerignore

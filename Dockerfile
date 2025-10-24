@@ -1,20 +1,21 @@
 # Base image Python officielle
 FROM python:3.11-slim
 
-# Définir le répertoire de travail dans le conteneur
+# Définir le répertoire de travail
 WORKDIR /app
 
-# Copier le fichier des dépendances et les installer
+# Copier et installer les dépendances
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copier le reste du code de l'application (main.py, data/, static/, etc.)
+# Télécharger le modèle PENDANT le build Docker
+RUN python -c "from sentence_transformers import SentenceTransformer; model = SentenceTransformer('all-MiniLM-L6-v2'); model.save('/app/models/all-MiniLM-L6-v2')"
+
+# Copier le code de l'application
 COPY . .
 
-# Cloud Run écoute sur le port 8080 par défaut
-# La variable PORT est automatiquement fournie par Cloud Run
+# Port Cloud Run
 ENV PORT 8080
 
-# Exécuter l'application avec Gunicorn, en utilisant le port 8080
-# (main:app) lance l'application 'app' dans le fichier 'main.py'
-CMD gunicorn --bind 0.0.0.0:8080 --workers 1 main:app
+# Lancer Gunicorn
+CMD gunicorn --bind 0.0.0.0:8080 --workers 1 --timeout 300 main:app

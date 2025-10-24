@@ -21,7 +21,7 @@ text_features_array = None
 text_metadata_list = None
 TEXT_EMBEDDING_MODEL = None
 MODEL_NAME_FREE = "all-MiniLM-L6-v2"
-LOCAL_MODEL_PATH = f'models/{MODEL_NAME_FREE}' # --- MODIFIÉ --- Chemin vers le modèle local
+LOCAL_MODEL_PATH = '/app/models/all-MiniLM-L6-v2'  # Chemin absolu dans le conteneur
 TEXT_EMBEDDINGS_PATH = 'data/text_embeddings_free.pkl'
 
 # --- FONCTION DE CHARGEMENT DE BASE DE DONNÉES ---

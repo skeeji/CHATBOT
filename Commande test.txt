@@ -1,0 +1,13 @@
+# --- VOTRE VRAIE URL PUBLIQUE EST ICI ---
+$url = httpschatbot-984654216979.europe-west1.run.appapisearch_text 
+# --------------------------------------------------------
+
+$body = @{
+    query = lustre en laiton du XVIIIe siècle
+    top_k = 3
+}  ConvertTo-Json
+
+Write-Host Appel de l'API publique à $url...
+$utf8Body = [System.Text.Encoding]UTF8.GetBytes($body)
+
+Invoke-RestMethod -Uri $url -Method Post -ContentType applicationjson -Body $utf8Body

@@ -7,11 +7,17 @@ from sentence_transformers import SentenceTransformer
 import torch 
 
 # --- CONFIGURATION ---
-# !! VÉRIFIEZ CE CHEMIN : Le nom de votre fichier CSV doit correspondre !!
 CSV_PATH = "luminaires_export_2025-08-28 (4) - Bien.csv" 
 OUTPUT_DIR = "data"
-OUTPUT_FILE = os.path.join(OUTPUT_DIR, "text_embeddings_free.pkl") 
-MODEL_NAME = "all-MiniLM-L6-v2" # Modèle Sentence-Transformer gratuit
+
+# --- MODIFICATION 1 ---
+# On change le nom du modèle pour un plus performant et multilingue
+MODEL_NAME = "paraphrase-multilingual-mpnet-base-v2" 
+
+# --- MODIFICATION 2 ---
+# On change le nom du fichier de sortie pour correspondre au nouveau modèle
+OUTPUT_FILE = os.path.join(OUTPUT_DIR, "text_embeddings_mpnet.pkl") 
+
 
 # --- PROCESSUS PRINCIPAL ---
 def process_catalogue():
@@ -22,7 +28,7 @@ def process_catalogue():
         print(f"ERREUR: Fichier CSV non trouvé à: {CSV_PATH}")
         return
 
-    # 1. Créer une colonne de description riche (concaténation des champs pertinents)
+    # 1. Créer une colonne de description riche
     print("Préparation des descriptions sémantiques...")
     df['semantic_description'] = df.apply(lambda row: 
         f"Nom: {row.get('Nom luminaire', 'Inconnu') if pd.notna(row.get('Nom luminaire')) else 'Inconnu'}. "
@@ -37,10 +43,9 @@ def process_catalogue():
     
     descriptions = df['semantic_description'].tolist()
     
-    # 2. Charger le modèle Sentence Transformer
-    print(f"Chargement du modèle d'embedding gratuit: {MODEL_NAME}...")
+    # 2. Charger le nouveau modèle Sentence Transformer
+    print(f"Chargement du nouveau modèle d'embedding: {MODEL_NAME}...")
     try:
-        # Configuration pour charger sur CPU/GPU
         device = 'cuda' if torch.cuda.is_available() else 'cpu' 
         model = SentenceTransformer(MODEL_NAME, device=device)
         print(f"Modèle chargé sur {device}.")
@@ -48,8 +53,8 @@ def process_catalogue():
         print(f"Erreur de chargement du modèle: {e}.")
         return
 
-    # 3. Générer les embeddings en une seule fois
-    print(f"Génération de {len(descriptions)} embeddings...")
+    # 3. Générer les embeddings
+    print(f"Génération de {len(descriptions)} embeddings (cela peut prendre du temps)...")
     embeddings = model.encode(
         descriptions, 
         show_progress_bar=True,
@@ -60,10 +65,7 @@ def process_catalogue():
     # 4. Préparer les métadonnées
     metadata = []
     print("Préparation des métadonnées...")
-    # S'assurer que les clés existent dans votre CSV
-    required_cols = ['Image luminaire (Nom du fichier)', 'Nom luminaire', 'Artiste / Dates', 'Année', 'Lien site marchand']
     for index, row in df.iterrows():
-        # Utiliser .get() avec des valeurs par défaut pour éviter les erreurs si une colonne manque
         metadata.append({
             'image_id': row.get('Image luminaire (Nom du fichier)', ''),
             'nom': row.get('Nom luminaire', 'N/A'),
@@ -89,7 +91,6 @@ def process_catalogue():
         print("\n❌ Échec de la génération des embeddings.")
 
 if __name__ == "__main__":
-    # --- ÉTAPE CRUCIALE ---
     print("\n-------------------------------------------------------------")
     print("--- ATTENTION : Ceci est un long processus de génération ! ---")
     print("-------------------------------------------------------------\n")

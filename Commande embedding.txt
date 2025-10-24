@@ -1,0 +1,5 @@
+pip install --upgrade torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+pip install --upgrade sentence-transformers transformers
+
+python generate_text_embeddings_free.py

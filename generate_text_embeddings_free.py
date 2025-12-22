@@ -2,96 +2,53 @@
 import numpy as np
 import pickle
 import os
-from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
-import torch 
 
-# --- CONFIGURATION ---
-CSV_PATH = "luminaires_export_2025-08-28 (4) - Bien.csv" 
-OUTPUT_DIR = "data"
+# Chemins des fichiers
+CSV_PATH = "luminaires_export_2025-08-28 (4).csv"
+OUTPUT_FILE = "data/text_embeddings_mpnet.pkl"
 
-# --- MODIFICATION 1 ---
-# On change le nom du modèle pour un plus performant et multilingue
-MODEL_NAME = "paraphrase-multilingual-mpnet-base-v2" 
-
-# --- MODIFICATION 2 ---
-# On change le nom du fichier de sortie pour correspondre au nouveau modèle
-OUTPUT_FILE = os.path.join(OUTPUT_DIR, "text_embeddings_mpnet.pkl") 
-
-
-# --- PROCESSUS PRINCIPAL ---
-def process_catalogue():
-    print("Chargement du catalogue...")
-    try:
-        df = pd.read_csv(CSV_PATH)
-    except FileNotFoundError:
-        print(f"ERREUR: Fichier CSV non trouvé à: {CSV_PATH}")
+def run_generation():
+    if not os.path.exists(CSV_PATH):
+        print(f"❌ Erreur : {CSV_PATH} est introuvable.")
         return
 
-    # 1. Créer une colonne de description riche
-    print("Préparation des descriptions sémantiques...")
-    df['semantic_description'] = df.apply(lambda row: 
-        f"Nom: {row.get('Nom luminaire', 'Inconnu') if pd.notna(row.get('Nom luminaire')) else 'Inconnu'}. "
-        f"Artiste: {row.get('Artiste / Dates', 'Inconnu') if pd.notna(row.get('Artiste / Dates')) else 'Inconnu'}. "
-        f"Année: {row.get('Année', 'Inconnue') if pd.notna(row.get('Année')) else 'Inconnue'}. "
-        f"Catégorie: {row.get('Catégorie', 'Inconnue') if pd.notna(row.get('Catégorie')) else 'Inconnue'}. "
-        f"Matériaux: {row.get('Matériaux', 'Non spécifié') if pd.notna(row.get('Matériaux')) else 'Non spécifié'}. "
-        f"Mots-clés: {row.get('Etiquette', 'Aucun') if pd.notna(row.get('Etiquette')) else 'Aucun'}. "
-        f"Description détaillée: {row.get('Description', '') if pd.notna(row.get('Description')) else ''}", 
-        axis=1
-    )
+    print("--- 1. Chargement du catalogue CSV ---")
+    df = pd.read_csv(CSV_PATH)
     
-    descriptions = df['semantic_description'].tolist()
-    
-    # 2. Charger le nouveau modèle Sentence Transformer
-    print(f"Chargement du nouveau modèle d'embedding: {MODEL_NAME}...")
-    try:
-        device = 'cuda' if torch.cuda.is_available() else 'cpu' 
-        model = SentenceTransformer(MODEL_NAME, device=device)
-        print(f"Modèle chargé sur {device}.")
-    except Exception as e:
-        print(f"Erreur de chargement du modèle: {e}.")
-        return
+    # On prépare le texte que l'IA va "lire" pour comprendre l'objet
+    df['text_for_ai'] = df.apply(lambda r: 
+        f"Nom: {r.get('Nom luminaire','')}. Artiste: {r.get('Artiste / Dates','')}. "
+        f"Catégorie: {r.get('Catégorie','')}. Matériaux: {r.get('Matériaux','')}. "
+        f"Description: {r.get('Description','')}", axis=1)
 
-    # 3. Générer les embeddings
-    print(f"Génération de {len(descriptions)} embeddings (cela peut prendre du temps)...")
-    embeddings = model.encode(
-        descriptions, 
-        show_progress_bar=True,
-        normalize_embeddings=True,
-        convert_to_numpy=True
-    )
+    print("--- 2. Chargement du modèle IA (MPNet) ---")
+    model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2")
     
-    # 4. Préparer les métadonnées
+    print("--- 3. Calcul des vecteurs (Embeddings) ---")
+    embeddings = model.encode(df['text_for_ai'].tolist(), show_progress_bar=True, normalize_embeddings=True)
+
+    print("--- 4. Sauvegarde des métadonnées complètes ---")
     metadata = []
-    print("Préparation des métadonnées...")
-    for index, row in df.iterrows():
+    for _, row in df.iterrows():
+        # ON ENREGISTRE TOUT : Si tu ajoutes une colonne au CSV, ajoute-la ici
         metadata.append({
-            'image_id': row.get('Image luminaire (Nom du fichier)', ''),
-            'nom': row.get('Nom luminaire', 'N/A'),
-            'artiste': row.get('Artiste / Dates', 'N/A'),
-            'annee': row.get('Année', 'N/A'),
-            'lien_site': row.get('Lien site marchand', '#') 
+            'image_id': str(row.get('Image luminaire (Nom du fichier)', '')),
+            'nom': str(row.get('Nom luminaire', 'N/A')),
+            'artiste': str(row.get('Artiste / Dates', 'N/A')),
+            'annee': str(row.get('Année', 'N/A')),
+            'categorie': str(row.get('Catégorie', 'N/A')),
+            'description': str(row.get('Description', 'N/A')),
+            'materiaux': str(row.get('Matériaux', 'N/A')),
+            'dimensions': str(row.get('Dimensions', 'N/A')),
+            'lien_site': str(row.get('Lien site marchand', '#'))
         })
-            
-    # 5. Sauvegarder les résultats
-    if embeddings.shape[0] > 0:
-        embeddings_array = np.array(embeddings, dtype='float32')
-        data_to_save = {
-            'features': embeddings_array,
-            'metadata': metadata
-        }
-        
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        with open(OUTPUT_FILE, 'wb') as f:
-            pickle.dump(data_to_save, f)
-            
-        print(f"\n✅ Terminé! {embeddings.shape[0]} embeddings et métadonnées sauvegardés dans '{OUTPUT_FILE}'.")
-    else:
-        print("\n❌ Échec de la génération des embeddings.")
+
+    os.makedirs("data", exist_ok=True)
+    with open(OUTPUT_FILE, 'wb') as f:
+        pickle.dump({'features': np.array(embeddings, dtype='float32'), 'metadata': metadata}, f)
+    
+    print(f"✅ Terminé ! Le fichier {OUTPUT_FILE} contient {len(metadata)} produits avec toutes les colonnes.")
 
 if __name__ == "__main__":
-    print("\n-------------------------------------------------------------")
-    print("--- ATTENTION : Ceci est un long processus de génération ! ---")
-    print("-------------------------------------------------------------\n")
-    process_catalogue()
+    run_generation()

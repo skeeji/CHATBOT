@@ -1,0 +1,8 @@
+# 1. Ajouter le nouveau .pkl (et le script modifié)
+git add .
+
+# 2. Faire un commit
+git commit -m "Fix: Amélioration de la pertinence en boostant la catégorie"
+
+# 3. Pousser sur la branche 'master' (celle que Cloud Run surveille)
+git push origin master

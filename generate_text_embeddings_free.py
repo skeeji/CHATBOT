@@ -2,32 +2,54 @@
 import numpy as np
 import pickle
 import os
+import re
+import warnings
+
+# Supprimer les avertissements inutiles dans le terminal
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+warnings.filterwarnings("ignore")
+
 from sentence_transformers import SentenceTransformer
 
 CSV_PATH = "luminaires_export_2025-08-28 (4).csv"
 OUTPUT_FILE = "data/text_embeddings_mpnet.pkl"
 
-def run_generation():
-    print("--- 1. Chargement du CSV ---")
-    # On force la lecture en chaînes de caractères pour éviter les erreurs de type
+def clean_price(text):
+    """Extrait proprement le prix numérique (ex: '1 200 €' -> 1200)"""
+    if not text or str(text) == 'nan' or '€' not in str(text): return 0
+    t = str(text).replace('\xa0', '').replace(' ', '').replace('€', '')
+    nums = re.findall(r'\d+', t)
+    return int(nums[0]) if nums else 0
+
+def run():
+    print("--- 🚀 DÉBUT DE LA GÉNÉRATION HAUTE PRÉCISION ---")
     df = pd.read_csv(CSV_PATH, dtype=str).fillna("")
     
-    # Création du texte riche pour l'IA (On combine tout pour la recherche)
-    df['text_for_ai'] = df.apply(lambda r: 
-        f"Nom: {r['Nom luminaire']}. Artiste: {r['Artiste / Dates']}. "
-        f"Matériaux: {r['Matériaux']}. Description: {r['Description']}. "
-        f"Catégorie: {r['Catégorie']}", axis=1)
+    # Dictionnaire de synonymes pour aider l'IA
+    syns = {
+        "Lampe à poser": "lampe de table, bureau, chevet, luminaire à poser",
+        "Suspension": "lustre, plafonnier, luminaire suspendu",
+        "Lampadaire": "liseuse, lampe de sol, grande lampe"
+    }
 
-    print("--- 2. Chargement du modèle IA ---")
+    print("--- 🧠 Enrichissement des données (Catégories, Matériaux, Époques) ---")
+    def build_text(r):
+        cat = r['Catégorie']
+        s = syns.get(cat, "")
+        # On répète les infos clés pour donner du poids (Boost sémantique)
+        return (f"CATÉGORIE: {cat} {cat} {s}. MATÉRIAUX: {r['Matériaux']} {r['Matériaux']}. "
+                f"ARTISTE: {r['Artiste / Dates']}. NOM: {r['Nom luminaire']}. "
+                f"ANNÉE: {r['Année']}. DESCRIPTION: {r['Description']}")
+
+    df['text_for_ai'] = df.apply(build_text, axis=1)
+    df['prix_num'] = df['Estimation'].apply(clean_price)
+
+    print("--- ⏳ Encodage IA (cela peut prendre 1-2 minutes) ---")
     model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2")
-    
-    print("--- 3. Calcul des vecteurs (Embeddings) ---")
     embeddings = model.encode(df['text_for_ai'].tolist(), show_progress_bar=True, normalize_embeddings=True)
 
-    print("--- 4. Stockage des métadonnées avec clés camelCase ---")
     metadata = []
-    for _, row in df.iterrows():
-        # On utilise les noms de clés attendus par votre frontend (v0.dev)
+    for i, row in df.iterrows():
         metadata.append({
             'luminaireId': row['Image luminaire (Nom du fichier)'],
             'nom': row['Nom luminaire'],
@@ -37,7 +59,7 @@ def run_generation():
             'materiaux': row['Matériaux'],
             'dimensions': row['Dimensions'],
             'categorie': row['Catégorie'],
-            'lienSite': row['Lien site marchand'],
+            'prix': int(row['prix_num']),
             'imageUrl': f"/images/{row['Image luminaire (Nom du fichier)']}"
         })
 
@@ -45,7 +67,7 @@ def run_generation():
     with open(OUTPUT_FILE, 'wb') as f:
         pickle.dump({'features': np.array(embeddings, dtype='float32'), 'metadata': metadata}, f)
     
-    print(f"✅ Terminé ! {len(metadata)} produits prêts.")
+    print(f"\n✅ RÉUSSITE : {len(metadata)} produits encodés avec précision.")
 
 if __name__ == "__main__":
-    run_generation()
+    run()

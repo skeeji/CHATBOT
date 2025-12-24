@@ -1,24 +1,20 @@
-# --- ÉTAPE 1: Base image Python ---
 FROM python:3.11-slim
 
-# --- ÉTAPE 2: Définir le répertoire de travail ---
 WORKDIR /app
 
-# --- ÉTAPE 3: Installer les dépendances ---
+# Installation des dÃ©pendances systÃ¨me
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
-RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
-# --- ÉTAPE 4: Télécharger le NOUVEAU modèle dans l'image ---
-# ATTENTION: Cette étape sera BEAUCOUP plus longue car le modèle est plus gros
+# --- PRÃ‰-TÃ‰LÃ‰CHARGEMENT DU MODÃˆLE ---
 RUN python -c "from sentence_transformers import SentenceTransformer; model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2'); model.save('/app/models/paraphrase-multilingual-mpnet-base-v2')"
 
-# --- ÉTAPE 5: Copier TOUT le code de l'application ---
 COPY . .
 
-# --- ÉTAPE 6: Définir le port ---
-ENV PORT 8080
-
-# --- ÉTAPE 7: Lancer l'application ---
-# On augmente le timeout à 600s car le nouveau modèle est plus lent à charger
-CMD gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 600 main:app
+# Configuration pour Cloud Run : Timeout long car le modÃ¨le est lourd
+CMD exec gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 0 main:app

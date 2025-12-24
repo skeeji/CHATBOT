@@ -29,16 +29,11 @@ else:
 # 2. Chargement du modèle (Local)
 logger.info("⏳ Chargement du modèle SentenceTransformer...")
 try:
-    # On force le chargement depuis le dossier local créé au build
     model = SentenceTransformer(MODEL_PATH)
     logger.info("✅ Modèle chargé avec succès depuis le stockage local.")
 except Exception as e:
     logger.error(f"❌ Erreur chargement modèle : {e}")
     model = None
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({"status": "ok", "model_loaded": model is not None}), 200
 
 @app.route('/api/search_text', methods=['POST'])
 def search():
@@ -50,12 +45,11 @@ def search():
         query = data.get('query', '').lower()
         top_k = int(data.get('top_k', 40))
         
-        logger.info(f"🔍 Recherche texte : '{query}' (top_k={top_k})")
+        logger.info(f"🔍 Recherche texte : '{query}'")
         
         if not query:
             return jsonify({'success': True, 'results': []})
 
-        # Encodage et calcul de similarité
         query_vec = model.encode([query], normalize_embeddings=True)[0]
         scores = np.dot(db['features'], query_vec)
         
@@ -76,11 +70,9 @@ def search():
             results.append(item)
 
         results = sorted(results, key=lambda x: x['similarity'], reverse=True)
-        logger.info(f"✨ {len(results[:top_k])} résultats trouvés")
-        
         return jsonify({'success': True, 'results': results[:top_k]})
     except Exception as e:
-        logger.error(f"💥 Erreur recherche : {e}")
+        logger.error(f"💥 Erreur : {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/luminaires/<id>', methods=['GET'])

@@ -29,7 +29,6 @@ else:
 # 2. Chargement du modèle (Local)
 logger.info("⏳ Chargement du modèle SentenceTransformer...")
 try:
-    # On force le chargement depuis le dossier local créé au build Docker
     model = SentenceTransformer(MODEL_PATH)
     logger.info("✅ Modèle chargé avec succès depuis le stockage local.")
 except Exception as e:
@@ -51,7 +50,7 @@ def search():
         if not query:
             return jsonify({'success': True, 'results': []})
 
-        # Encodage et calcul de similarité vectorielle
+        # Calcul de similarité
         query_vec = model.encode([query], normalize_embeddings=True)[0]
         scores = np.dot(db['features'], query_vec)
         
@@ -60,17 +59,16 @@ def search():
             item = db['metadata'][i].copy()
             score = float(scores[i])
             
-            # Boost textuel direct
+            # Boost textuel (Artiste, Nom, Matériaux)
             q_words = query.split()
             for word in q_words:
                 if len(word) > 3:
-                    if word in item.get('nom', '').lower(): score += 0.2
                     if word in item.get('artiste', '').lower(): score += 0.3
+                    if word in item.get('nom', '').lower(): score += 0.2
             
             item['similarity'] = score
             results.append(item)
 
-        # Tri et renvoi du top_k
         results = sorted(results, key=lambda x: x['similarity'], reverse=True)
         return jsonify({'success': True, 'results': results[:top_k]})
     except Exception as e:

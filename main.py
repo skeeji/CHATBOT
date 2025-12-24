@@ -3,72 +3,85 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from sentence_transformers import SentenceTransformer
 
-# Configuration logs
-logging.basicConfig(level=logging.INFO)
+# Configuration des Logs
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
 
-# --- CONFIGURATION CHEMINS ---
-# Ce chemin doit correspondre EXACTEMENT à celui du Dockerfile
-MODEL_LOCAL_PATH = '/app/models/paraphrase-multilingual-mpnet-base-v2'
-DB_PATH = 'data/text_embeddings_mpnet.pkl'
+# --- CONFIGURATION ---
+MODEL_PATH = "/app/models/paraphrase-multilingual-mpnet-base-v2"
+DB_PATH = "data/text_embeddings_mpnet.pkl"
 
-# Chargement de la base de données
+# 1. Chargement de la base Pickle
+db = {'metadata': [], 'features': []}
 if os.path.exists(DB_PATH):
-    with open(DB_PATH, 'rb') as f:
-        db = pickle.load(f)
-    logger.info(f"✅ Base chargée : {len(db['metadata'])} luminaires")
+    try:
+        with open(DB_PATH, 'rb') as f:
+            db = pickle.load(f)
+        logger.info(f"✅ Base chargée : {len(db['metadata'])} luminaires")
+    except Exception as e:
+        logger.error(f"❌ Erreur lecture Pickle : {e}")
 else:
-    db = {'metadata': [], 'features': []}
-    logger.error("❌ Erreur : Fichier Pickle (DB) introuvable")
+    logger.error(f"❌ Fichier {DB_PATH} introuvable !")
 
-# Chargement du modèle (Local ou téléchargé si local absent)
+# 2. Chargement du modèle (Local)
+logger.info("⏳ Chargement du modèle SentenceTransformer...")
 try:
-    if os.path.exists(MODEL_LOCAL_PATH):
-        logger.info("📦 Chargement du modèle depuis le stockage LOCAL du conteneur...")
-        model = SentenceTransformer(MODEL_LOCAL_PATH)
-    else:
-        logger.warning("🌐 Modèle local absent, tentative de téléchargement distant...")
-        model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2")
+    # On force le chargement depuis le dossier local créé au build
+    model = SentenceTransformer(MODEL_PATH)
+    logger.info("✅ Modèle chargé avec succès depuis le stockage local.")
 except Exception as e:
-    logger.error(f"❌ Erreur critique chargement modèle : {e}")
+    logger.error(f"❌ Erreur chargement modèle : {e}")
     model = None
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "ok", "model_loaded": model is not None}), 200
 
 @app.route('/api/search_text', methods=['POST'])
 def search():
     if model is None:
-        return jsonify({'success': False, 'error': 'Modèle non disponible'}), 500
+        return jsonify({"success": False, "error": "Modèle non chargé"}), 500
+
+    try:
+        data = request.get_json(force=True)
+        query = data.get('query', '').lower()
+        top_k = int(data.get('top_k', 40))
         
-    data = request.get_json(force=True)
-    query = data.get('query', '').lower()
-    top_k = int(data.get('top_k', 40))
-    
-    if not query: return jsonify({'success': True, 'results': []})
-
-    # Recherche vectorielle
-    query_vec = model.encode([query], normalize_embeddings=True)[0]
-    scores = np.dot(db['features'], query_vec)
-    
-    results = []
-    for i in range(len(db['metadata'])):
-        item = db['metadata'][i].copy()
-        score = float(scores[i])
+        logger.info(f"🔍 Recherche texte : '{query}' (top_k={top_k})")
         
-        # BOOST mot-clé exact
-        q_words = query.split()
-        for word in q_words:
-            if len(word) > 3:
-                if word in item.get('artiste', '').lower(): score += 0.3
-                if word in item.get('materiaux', '').lower(): score += 0.2
-                if word in item.get('nom', '').lower(): score += 0.2
+        if not query:
+            return jsonify({'success': True, 'results': []})
 
-        item['similarity'] = score
-        results.append(item)
+        # Encodage et calcul de similarité
+        query_vec = model.encode([query], normalize_embeddings=True)[0]
+        scores = np.dot(db['features'], query_vec)
+        
+        results = []
+        for i in range(len(db['metadata'])):
+            item = db['metadata'][i].copy()
+            score = float(scores[i])
+            
+            # Boost mots-clés
+            q_words = query.split()
+            for word in q_words:
+                if len(word) > 3:
+                    if word in item.get('artiste', '').lower(): score += 0.3
+                    if word in item.get('materiaux', '').lower(): score += 0.2
+                    if word in item.get('nom', '').lower(): score += 0.2
+            
+            item['similarity'] = score
+            results.append(item)
 
-    results = sorted(results, key=lambda x: x['similarity'], reverse=True)
-    return jsonify({'success': True, 'results': results[:top_k]})
+        results = sorted(results, key=lambda x: x['similarity'], reverse=True)
+        logger.info(f"✨ {len(results[:top_k])} résultats trouvés")
+        
+        return jsonify({'success': True, 'results': results[:top_k]})
+    except Exception as e:
+        logger.error(f"💥 Erreur recherche : {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/luminaires/<id>', methods=['GET'])
 def get_details(id):
@@ -79,5 +92,4 @@ def get_details(id):
     return jsonify({'success': False}), 404
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
